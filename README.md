@@ -1,9 +1,18 @@
 ## Concurrency Benchmark Skeleton
 
-Meeting 1: repo skeleton + interfaces + placeholder runner.
+### Meeting 1
 
-Run:
-- src/bench/Main.java
+- Repo skeleton + interfaces + placeholder runner.
 
-Output:
-- total time to run placeholder tasks using a model
+    Run:
+    - src/bench/Main.java
+
+    Output:
+    - total time to run placeholder tasks using a model
+
+
+
+- IO- heavy workload　(`workloads/io/`)
+  1.  IO sleep workload: reproducible; highlights blocking/wait effects on scheduling.
+  2. File read/write workload: due to OS caching; warm-up + multiple trials may be needed.
+  
