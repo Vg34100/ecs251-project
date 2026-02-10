@@ -24,4 +24,18 @@ public class BenchmarkRunner {
         double seconds = (end - start) / 1_000_000_000.0;
         return new RunResult(model.name(), numTasks, seconds);
     }
+
+    public static RunResult runOnce(
+            ConcurrencyModel model,
+            String workloadName,
+            List<Runnable> tasks
+    ) throws InterruptedException {
+
+        long start = System.nanoTime();
+        model.runAll(tasks);
+        long end = System.nanoTime();
+
+        double seconds = (end - start) / 1_000_000_000.0;
+        return new RunResult(model.name() + "-" + workloadName, tasks.size(), seconds);
+    }
 }
