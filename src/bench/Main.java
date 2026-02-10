@@ -1,32 +1,70 @@
 package bench;
 
 import models.ConcurrencyModel;
-import models.SequentialModel;
+import models.FixedThreadPoolModel;
 import workloads.cpu.CpuBusyWorkload;
+import workloads.io.SleepIoWorkload;
+import workloads.TaskFactoryWorkload;
+
 import java.util.List;
 
 public class Main {
+
+    private static final int TRIALS = 3;
+
     public static void main(String[] args) throws Exception {
-        ConcurrencyModel model = new SequentialModel();
+        int threads = Runtime.getRuntime().availableProcessors();
+        ConcurrencyModel model = new FixedThreadPoolModel(threads);
 
-        RunResult r = BenchmarkRunner.runOnce(model, 1_000_000);
+        // Add one more workload size, and keep a middle one
+        int[] cpuTaskSizes = {1_000, 10_000, 50_000};
+        int[] ioTaskSizes  = {50, 100, 200};
 
-        int numTasks = 10_000;
-        CpuBusyWorkload wl = new CpuBusyWorkload(
-                1_000,   // workIters
-                50       // mixIters
+        System.out.println("model=" + model.name() + " threads=" + threads);
+
+        // -------------------------
+        // CPU workload: CpuBusyWorkload
+        // -------------------------
+        CpuBusyWorkload cpu = new CpuBusyWorkload(
+                1_000,  // workIters
+                50      // mixIters
         );
 
-        List<Runnable> tasks = wl.makeTasks(numTasks);
+        for (int n : cpuTaskSizes) {
+            List<Runnable> tasks = cpu.makeTasks(n);
+            runTrials(model, "cpu-busy", tasks);
+        }
 
-        long start = System.nanoTime();
-        model.runAll(tasks);
-        long end = System.nanoTime();
+        // -------------------------
+        // IO workload: SleepIoWorkload (simulated IO)
+        // -------------------------
+        TaskFactoryWorkload io = new SleepIoWorkload(
+                10,     // sleepMillis
+                5_000   // cpuIterations
+        );
 
-        double seconds = (end - start) / 1_000_000_000.0;
+        for (int n : ioTaskSizes) {
+            List<Runnable> tasks = io.buildTasks(n);
+            runTrials(model, io.name(), tasks);
+        }
+    }
 
-        System.out.println("model=" + r.model);
-        System.out.println("tasks=" + r.numTasks);
-        System.out.println("seconds=" + r.seconds);
+    private static void runTrials(ConcurrencyModel model, String workloadName, List<Runnable> tasks)
+            throws InterruptedException {
+
+        // Optional warm-up: one run not counted. Helps a bit with JIT noise.
+        BenchmarkRunner.runOnce(model, workloadName + "-warmup", tasks);
+
+        for (int t = 1; t <= TRIALS; t++) {
+            RunResult r = BenchmarkRunner.runOnce(model, workloadName, tasks);
+
+            System.out.println(
+                    model.name() + " " +
+                            workloadName + " " +
+                            "trial=" + t + " " +
+                            "tasks=" + r.numTasks + " " +
+                            "seconds=" + r.seconds
+            );
+        }
     }
 }
