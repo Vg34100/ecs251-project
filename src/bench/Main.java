@@ -2,10 +2,11 @@ package bench;
 
 import models.ConcurrencyModel;
 import models.FixedThreadPoolModel;
+import workloads.TaskFactoryWorkload;
 import workloads.cpu.CpuBusyWorkload;
 import workloads.io.SleepIoWorkload;
-import workloads.TaskFactoryWorkload;
 
+import java.io.IOException;
 import java.util.List;
 
 public class Main {
@@ -13,17 +14,17 @@ public class Main {
     private static final int TRIALS = 3;
 
     public static void main(String[] args) throws Exception {
+
         int threads = Runtime.getRuntime().availableProcessors();
         ConcurrencyModel model = new FixedThreadPoolModel(threads);
 
-        // Add one more workload size, and keep a middle one
         int[] cpuTaskSizes = {1_000, 10_000, 50_000};
         int[] ioTaskSizes  = {50, 100, 200};
 
         System.out.println("model=" + model.name() + " threads=" + threads);
 
         // -------------------------
-        // CPU workload: CpuBusyWorkload
+        // CPU workload
         // -------------------------
         CpuBusyWorkload cpu = new CpuBusyWorkload(
                 1_000,  // workIters
@@ -36,7 +37,7 @@ public class Main {
         }
 
         // -------------------------
-        // IO workload: SleepIoWorkload (simulated IO)
+        // IO workload (simulated)
         // -------------------------
         TaskFactoryWorkload io = new SleepIoWorkload(
                 10,     // sleepMillis
@@ -49,13 +50,17 @@ public class Main {
         }
     }
 
-    private static void runTrials(ConcurrencyModel model, String workloadName, List<Runnable> tasks)
-            throws InterruptedException {
+    private static void runTrials(
+            ConcurrencyModel model,
+            String workloadName,
+            List<Runnable> tasks
+    ) throws InterruptedException {
 
-        // Optional warm-up: one run not counted. Helps a bit with JIT noise.
+        // simple warm-up run so first measurement isn't weird
         BenchmarkRunner.runOnce(model, workloadName + "-warmup", tasks);
 
         for (int t = 1; t <= TRIALS; t++) {
+
             RunResult r = BenchmarkRunner.runOnce(model, workloadName, tasks);
 
             System.out.println(
@@ -63,8 +68,16 @@ public class Main {
                             workloadName + " " +
                             "trial=" + t + " " +
                             "tasks=" + r.numTasks + " " +
-                            "seconds=" + r.seconds
+                            "seconds=" + r.seconds + " " +
+                            "avgLatency(us)=" + r.avgLatencyMicros
             );
+
+            // write to CSV so we can plot later if needed
+            try {
+                CsvWriter.append("results.csv", r);
+            } catch (IOException ignored) {
+                // if CSV fails, just keep running
+            }
         }
     }
 }
