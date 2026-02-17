@@ -1,26 +1,83 @@
 package bench;
 
-import java.util.List;
 import models.ConcurrencyModel;
-import models.SequentialModel;
+import models.FixedThreadPoolModel;
+import workloads.TaskFactoryWorkload;
 import workloads.cpu.CpuBusyWorkload;
+import workloads.io.SleepIoWorkload;
+
+import java.io.IOException;
+import java.util.List;
 
 public class Main {
+
+    private static final int TRIALS = 3;
+
     public static void main(String[] args) throws Exception {
-        ConcurrencyModel model = new SequentialModel();
 
-        int numTasks = 10_000;
-        CpuBusyWorkload wl = new CpuBusyWorkload(1_000, 50);
-        List<Runnable> tasks = wl.makeTasks(numTasks);
+        int threads = Runtime.getRuntime().availableProcessors();
+        ConcurrencyModel model = new FixedThreadPoolModel(threads);
 
-        RunResult r = BenchmarkRunner.runOnce(model, tasks);
+        int[] cpuTaskSizes = {1_000, 10_000, 50_000};
+        int[] ioTaskSizes  = {50, 100, 200};
 
-        System.out.println("model=" + r.model);
-        System.out.println("tasks=" + r.numTasks);
-        System.out.println("seconds=" + r.seconds);
-        System.out.println("avgLatency(us)=" + r.avgLatencyMicros);
+        System.out.println("model=" + model.name() + " threads=" + threads);
 
-        // Optional CSV:
-        CsvWriter.append("results.csv", r);
+        // -------------------------
+        // CPU workload
+        // -------------------------
+        CpuBusyWorkload cpu = new CpuBusyWorkload(
+                1_000,  // workIters
+                50      // mixIters
+        );
+
+        for (int n : cpuTaskSizes) {
+            List<Runnable> tasks = cpu.makeTasks(n);
+            runTrials(model, "cpu-busy", tasks);
+        }
+
+        // -------------------------
+        // IO workload (simulated)
+        // -------------------------
+        TaskFactoryWorkload io = new SleepIoWorkload(
+                10,     // sleepMillis
+                5_000   // cpuIterations
+        );
+
+        for (int n : ioTaskSizes) {
+            List<Runnable> tasks = io.buildTasks(n);
+            runTrials(model, io.name(), tasks);
+        }
+    }
+
+    private static void runTrials(
+            ConcurrencyModel model,
+            String workloadName,
+            List<Runnable> tasks
+    ) throws InterruptedException {
+
+        // simple warm-up run so first measurement isn't weird
+        BenchmarkRunner.runOnce(model, workloadName + "-warmup", tasks);
+
+        for (int t = 1; t <= TRIALS; t++) {
+
+            RunResult r = BenchmarkRunner.runOnce(model, workloadName, tasks);
+
+            System.out.println(
+                    model.name() + " " +
+                            workloadName + " " +
+                            "trial=" + t + " " +
+                            "tasks=" + r.numTasks + " " +
+                            "seconds=" + r.seconds + " " +
+                            "avgLatency(us)=" + r.avgLatencyMicros
+            );
+
+            // write to CSV so we can plot later if needed
+            try {
+                CsvWriter.append("results.csv", r);
+            } catch (IOException ignored) {
+                // if CSV fails, just keep running
+            }
+        }
     }
 }
