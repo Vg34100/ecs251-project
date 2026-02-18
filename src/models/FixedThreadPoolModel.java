@@ -1,15 +1,19 @@
 package models;
 
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class FixedThreadPoolModel implements ConcurrencyModel {
 
     private final int numThreads;
 
     public FixedThreadPoolModel(int numThreads) {
+        if (numThreads <= 0) {
+            throw new IllegalArgumentException("numThreads must be > 0");
+        }
         this.numThreads = numThreads;
     }
 
@@ -20,42 +24,38 @@ public class FixedThreadPoolModel implements ConcurrencyModel {
 
     @Override
     public void runAll(List<Runnable> tasks) throws InterruptedException {
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        CountDownLatch done = new CountDownLatch(tasks.size());
+        ExecutorService pool = Executors.newFixedThreadPool(numThreads);
+        List<Future<?>> futures = new java.util.ArrayList<>(tasks.size());
 
-        // wrap tasks so we can count completion
-        for (Runnable task : tasks) {
-            queue.add(() -> {
+        try {
+            for (Runnable task : tasks) {
+                futures.add(pool.submit(task));
+            }
+
+            for (Future<?> future : futures) {
                 try {
-                    task.run();
-                } finally {
-                    done.countDown();
-                }
-            });
-        }
-
-        Thread[] workers = new Thread[numThreads];
-
-        for (int i = 0; i < numThreads; i++) {
-            workers[i] = new Thread(() -> {
-                try {
-                    while (true) {
-                        Runnable task = queue.poll();
-                        if (task == null) break;
-                        task.run();
+                    future.get();
+                } catch (ExecutionException e) {
+                    for (Future<?> f : futures) {
+                        f.cancel(true);
                     }
-                } catch (Exception ignored) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof RuntimeException) {
+                        throw (RuntimeException) cause;
+                    }
+                    if (cause instanceof Error) {
+                        throw (Error) cause;
+                    }
+                    throw new RuntimeException(cause);
                 }
-            });
-            workers[i].start();
-        }
-
-        // wait for all tasks
-        done.await();
-
-        // wait for workers to exit
-        for (Thread t : workers) {
-            t.join();
+            }
+        } catch (InterruptedException e) {
+            for (Future<?> f : futures) {
+                f.cancel(true);
+            }
+            throw e;
+        } finally {
+            pool.shutdownNow();
         }
     }
 }
