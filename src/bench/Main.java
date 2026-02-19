@@ -2,6 +2,8 @@ package bench;
 
 import models.ConcurrencyModel;
 import models.FixedThreadPoolModel;
+import models.VirtualThreadModel;
+import models.WorkStealingModel;
 import workloads.TaskFactoryWorkload;
 import workloads.cpu.CpuBusyWorkload;
 import workloads.io.SleepIoWorkload;
@@ -16,12 +18,16 @@ public class Main {
     public static void main(String[] args) throws Exception {
 
         int threads = Runtime.getRuntime().availableProcessors();
-        ConcurrencyModel model = new FixedThreadPoolModel(threads);
+
+        // meeting3: run all three models so we can compare side by side
+        ConcurrencyModel[] models = {
+                new FixedThreadPoolModel(threads),
+                new WorkStealingModel(threads),
+                new VirtualThreadModel()
+        };
 
         int[] cpuTaskSizes = {1_000, 10_000, 50_000};
         int[] ioTaskSizes  = {50, 100, 200};
-
-        System.out.println("model=" + model.name() + " threads=" + threads);
 
         // -------------------------
         // CPU workload
@@ -31,11 +37,6 @@ public class Main {
                 50      // mixIters
         );
 
-        for (int n : cpuTaskSizes) {
-            List<Runnable> tasks = cpu.makeTasks(n);
-            runTrials(model, "cpu-busy", tasks);
-        }
-
         // -------------------------
         // IO workload (simulated)
         // -------------------------
@@ -44,9 +45,18 @@ public class Main {
                 5_000   // cpuIterations
         );
 
-        for (int n : ioTaskSizes) {
-            List<Runnable> tasks = io.buildTasks(n);
-            runTrials(model, io.name(), tasks);
+        for (ConcurrencyModel model : models) {
+            System.out.println("\n=== model=" + model.name() + " threads=" + threads + " ===");
+
+            for (int n : cpuTaskSizes) {
+                List<Runnable> tasks = cpu.makeTasks(n);
+                runTrials(model, "cpu-busy", tasks);
+            }
+
+            for (int n : ioTaskSizes) {
+                List<Runnable> tasks = io.buildTasks(n);
+                runTrials(model, io.name(), tasks);
+            }
         }
     }
 
