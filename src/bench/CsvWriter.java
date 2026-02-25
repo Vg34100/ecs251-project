@@ -9,7 +9,9 @@ public class CsvWriter {
     public static void append(String filename, RunResult r) throws IOException {
         ensureParentDirectory(filename);
         try (FileWriter fw = new FileWriter(filename, true)) {
-            fw.write(r.model + "," + r.numTasks + "," + r.seconds + "," + r.avgLatencyMicros + "\n");
+            // meeting4: added p95 and p99 columns
+            fw.write(r.model + "," + r.numTasks + "," + r.seconds + "," +
+                    r.avgLatencyMicros + "," + r.p95LatencyMicros + "," + r.p99LatencyMicros + "\n");
         }
     }
 
@@ -41,14 +43,14 @@ public class CsvWriter {
         try (FileWriter fw = new FileWriter(filename, true)) {
             fw.write(
                     trial + "," +
-                    model + "," +
-                    workload + "," +
-                    concurrencyLevel + "," +
-                    ioBytesPerTask + "," +
-                    numTasks + "," +
-                    seconds + "," +
-                    throughputTasksPerSec + "," +
-                    avgLatencyMicros + "\n"
+                            model + "," +
+                            workload + "," +
+                            concurrencyLevel + "," +
+                            ioBytesPerTask + "," +
+                            numTasks + "," +
+                            seconds + "," +
+                            throughputTasksPerSec + "," +
+                            avgLatencyMicros + "\n"
             );
         }
     }
