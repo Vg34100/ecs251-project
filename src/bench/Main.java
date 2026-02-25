@@ -7,6 +7,7 @@ import models.WorkStealingModel;
 import workloads.TaskFactoryWorkload;
 import workloads.cpu.CpuBusyWorkload;
 import workloads.io.SleepIoWorkload;
+import workloads.mixed.MixedWorkload;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,7 @@ public class Main {
 
         int[] cpuTaskSizes = {1_000, 10_000, 50_000};
         int[] ioTaskSizes  = {50, 100, 200};
+        int[] mixedTaskSizes = {50, 100, 200};
 
         // -------------------------
         // CPU workload
@@ -45,6 +47,14 @@ public class Main {
                 5_000   // cpuIterations
         );
 
+        // meeting4: mixed workload -- short sleep + moderate CPU work per task
+        // simulates a server-like task that waits for IO then processes a response
+        TaskFactoryWorkload mixed = new MixedWorkload(
+                5,      // sleepMillis (shorter than pure IO workload)
+                500,    // workIters
+                50      // mixIters
+        );
+
         for (ConcurrencyModel model : models) {
             System.out.println("\n=== model=" + model.name() + " threads=" + threads + " ===");
 
@@ -56,6 +66,12 @@ public class Main {
             for (int n : ioTaskSizes) {
                 List<Runnable> tasks = io.buildTasks(n);
                 runTrials(model, io.name(), tasks);
+            }
+
+            // meeting4: run mixed workload across all models
+            for (int n : mixedTaskSizes) {
+                List<Runnable> tasks = mixed.buildTasks(n);
+                runTrials(model, mixed.name(), tasks);
             }
         }
     }
