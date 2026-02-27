@@ -9,9 +9,10 @@ public class CsvWriter {
     public static void append(String filename, RunResult r) throws IOException {
         ensureParentDirectory(filename);
         try (FileWriter fw = new FileWriter(filename, true)) {
-            // meeting4: added p95 and p99 columns
+            // meeting4: added p95, p99, and avgCpuLoad columns
             fw.write(r.model + "," + r.numTasks + "," + r.seconds + "," +
-                    r.avgLatencyMicros + "," + r.p95LatencyMicros + "," + r.p99LatencyMicros + "\n");
+                    r.avgLatencyMicros + "," + r.p95LatencyMicros + "," +
+                    r.p99LatencyMicros + "," + r.avgCpuLoad + "\n");
         }
     }
 

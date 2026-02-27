@@ -1,12 +1,18 @@
 package bench;
 
+import com.sun.management.OperatingSystemMXBean;
 import models.ConcurrencyModel;
 
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class BenchmarkRunner {
+
+    // meeting4: grab the OS bean once -- gives us process CPU load samples
+    private static final OperatingSystemMXBean OS_BEAN =
+            (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
     // Wraps tasks so we can measure per-task latency
     public static RunResult runOnce(
@@ -20,10 +26,33 @@ public class BenchmarkRunner {
             timedTasks.add(new TimedTask(r));
         }
 
+        // meeting4: sample CPU load in a background thread while the benchmark runs
+        // getProcessCpuLoad() returns [0.0, 1.0] for this JVM process, or -1.0 if unavailable
+        // we average samples taken every 50ms to get a rough utilization figure
+        double[] cpuSamples = new double[1000]; // preallocate enough slots
+        int[] sampleCount = {0};
+        Thread cpuSampler = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                double load = OS_BEAN.getProcessCpuLoad();
+                if (load >= 0.0 && sampleCount[0] < cpuSamples.length) {
+                    cpuSamples[sampleCount[0]++] = load;
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        cpuSampler.setDaemon(true);
+        cpuSampler.start();
+
         // Run benchmark (wall-clock time)
         long start = System.nanoTime();
         model.runAll(new ArrayList<>(timedTasks));
         long end = System.nanoTime();
+
+        cpuSampler.interrupt();
 
         // Collect per-task latencies in nanos
         long totalLatencyNanos = 0;
@@ -50,13 +79,22 @@ public class BenchmarkRunner {
             p99LatencyMicros = percentile(latenciesNanos, 99) / 1_000.0;
         }
 
+        // average the CPU samples collected during the run
+        double avgCpuLoad = -1.0;
+        if (sampleCount[0] > 0) {
+            double sum = 0.0;
+            for (int i = 0; i < sampleCount[0]; i++) sum += cpuSamples[i];
+            avgCpuLoad = sum / sampleCount[0];
+        }
+
         return new RunResult(
                 model.name(),
                 timedTasks.size(),
                 totalSeconds,
                 avgLatencyMicros,
                 p95LatencyMicros,
-                p99LatencyMicros
+                p99LatencyMicros,
+                avgCpuLoad
         );
     }
 
@@ -84,7 +122,8 @@ public class BenchmarkRunner {
                 base.seconds,
                 base.avgLatencyMicros,
                 base.p95LatencyMicros,
-                base.p99LatencyMicros
+                base.p99LatencyMicros,
+                base.avgCpuLoad
         );
     }
 }

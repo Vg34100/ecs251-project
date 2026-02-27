@@ -89,7 +89,7 @@ public class Main {
 
             RunResult r = BenchmarkRunner.runOnce(model, workloadName, tasks);
 
-            // meeting4: print p95 and p99 alongside avg
+            // meeting4: print p95, p99, and CPU load alongside avg
             System.out.println(
                     model.name() + " " +
                             workloadName + " " +
@@ -98,7 +98,8 @@ public class Main {
                             "seconds=" + r.seconds + " " +
                             "avgLatency(us)=" + r.avgLatencyMicros + " " +
                             "p95(us)=" + r.p95LatencyMicros + " " +
-                            "p99(us)=" + r.p99LatencyMicros
+                            "p99(us)=" + r.p99LatencyMicros + " " +
+                            "cpuLoad=" + String.format("%.3f", r.avgCpuLoad)
             );
 
             // write to CSV so we can plot later if needed
